@@ -2,6 +2,7 @@ package com.example.tomatotaskbox.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,9 +25,7 @@ fun TaskDetailScreen(
     navController: NavController
 ) {
     var isEditing by remember { mutableStateOf(false) }
-    var editedTask by remember { mutableStateOf<Task?>(null) }
-
-    val tasks by viewModel.tasks.collectAsState(initial = emptyList())
+    val tasks by viewModel.tasks.collectAsState()
     val task = tasks.find { it.id == taskId }
 
     // If task not found, show error and return
@@ -35,13 +34,6 @@ fun TaskDetailScreen(
             Text("Task not found")
         }
         return
-    }
-
-    // Initialize editedTask when entering edit mode
-    LaunchedEffect(isEditing) {
-        if (isEditing) {
-            editedTask = task
-        }
     }
 
     Scaffold(
@@ -56,7 +48,7 @@ fun TaskDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -71,7 +63,7 @@ fun TaskDetailScreen(
     ) { padding ->
         if (isEditing) {
             EditTaskContent(
-                task = editedTask ?: task,
+                task = task,
                 onTaskUpdated = { updatedTask ->
                     viewModel.updateTask(updatedTask)
                     isEditing = false
@@ -89,7 +81,8 @@ fun TaskDetailScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+
 @Composable
 private fun TaskDetailContent(
     task: Task,
@@ -181,7 +174,7 @@ private fun TaskDetailContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Estimated Time")
-                        Text("${it} minutes")
+                        Text("$it minutes")
                     }
                 }
 
@@ -210,6 +203,7 @@ private fun EditTaskContent(
     var title by remember { mutableStateOf(task.title) }
     var description by remember { mutableStateOf(task.description ?: "") }
     var priority by remember { mutableStateOf(task.priority) }
+    var showPriorityDropdown by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -232,21 +226,38 @@ private fun EditTaskContent(
             minLines = 3
         )
 
-        // Priority Selector
         ExposedDropdownMenuBox(
-            expanded = false,
-            onExpandedChange = { }
+            expanded = showPriorityDropdown,
+            onExpandedChange = { showPriorityDropdown = !showPriorityDropdown }
         ) {
             TextField(
                 value = priority.name,
                 onValueChange = { },
                 readOnly = true,
                 label = { Text("Priority") },
-                modifier = Modifier.fillMaxWidth()
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPriorityDropdown) },
+                colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
             )
+
+            ExposedDropdownMenu(
+                expanded = showPriorityDropdown,
+                onDismissRequest = { showPriorityDropdown = false }
+            ) {
+                TaskPriority.entries.forEach { priorityOption ->
+                    DropdownMenuItem(
+                        text = { Text(priorityOption.name) },
+                        onClick = {
+                            priority = priorityOption
+                            showPriorityDropdown = false
+                        }
+                    )
+                }
+            }
         }
 
-        // Save and Cancel Buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -259,6 +270,7 @@ private fun EditTaskContent(
             }
             Button(
                 onClick = {
+                    // Make sure to preserve all other task properties when updating
                     val updatedTask = task.copy(
                         title = title,
                         description = description.ifBlank { null },

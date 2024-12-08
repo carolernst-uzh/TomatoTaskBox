@@ -1,5 +1,6 @@
 package com.example.tomatotaskbox.ui
 
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,14 +9,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.tomatotaskbox.viewmodels.MainViewModel
 import com.example.tomatotaskbox.models.Task
-import com.example.tomatotaskbox.models.TaskStatus
 import com.example.tomatotaskbox.models.TaskPriority
+import com.example.tomatotaskbox.models.TaskStatus
+import com.example.tomatotaskbox.viewmodels.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,7 +24,8 @@ fun TaskListScreen(
     navController: NavController
 ) {
     var showAddTaskDialog by remember { mutableStateOf(false) }
-    val tasks by viewModel.tasks.collectAsState(initial = emptyList())
+    // Collect tasks from viewModel
+    val tasks by viewModel.tasks.collectAsState()
 
     Scaffold(
         floatingActionButton = {
@@ -35,11 +36,18 @@ fun TaskListScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            // Daily Goal Progress
-            val dailyGoal by viewModel.dailyGoal.collectAsState()
-            val completedSessions by viewModel.completedSessions.collectAsState()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Display tasks count for debugging
+            Text(
+                text = "Tasks: ${tasks.size}",
+                modifier = Modifier.padding(16.dp)
+            )
 
+            // Daily Goal Progress
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -50,22 +58,26 @@ fun TaskListScreen(
                         text = "Daily Productivity Goal",
                         style = MaterialTheme.typography.titleMedium
                     )
+                    val dailyGoal by viewModel.dailyGoal.collectAsState()
+                    val completedSessions by viewModel.completedSessions.collectAsState()
+
                     LinearProgressIndicator(
                         progress = if (dailyGoal > 0) completedSessions.toFloat() / dailyGoal else 0f,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp)
+                            .padding(vertical = 8.dp)
                     )
                     Text(
                         text = "$completedSessions / $dailyGoal sessions",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 8.dp)
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
 
             // Task List
-            LazyColumn {
+            LazyColumn(
+                modifier = Modifier.weight(1f)
+            ) {
                 items(tasks) { task ->
                     TaskListItem(
                         task = task,
@@ -80,11 +92,10 @@ fun TaskListScreen(
             }
         }
 
-        // Add Task Dialog
         if (showAddTaskDialog) {
             AddTaskDialog(
                 onDismiss = { showAddTaskDialog = false },
-                onTaskAdded = { newTask ->
+                onTaskAdded = { newTask: Task ->
                     viewModel.addTask(newTask)
                     showAddTaskDialog = false
                 }
@@ -110,47 +121,40 @@ fun TaskListItem(
             modifier = Modifier
                 .padding(16.dp)
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = task.title,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.titleMedium
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Priority indicator
-                    Surface(
-                        color = when (task.priority) {
-                            TaskPriority.HIGH -> MaterialTheme.colorScheme.error
-                            TaskPriority.MEDIUM -> MaterialTheme.colorScheme.secondary
-                            TaskPriority.LOW -> MaterialTheme.colorScheme.tertiary
-                        },
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = task.priority.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                if (!task.description.isNullOrEmpty()) {
+                    Text(
+                        text = task.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2
+                    )
+                }
 
-                    // Due date if available
-                    task.dueDate?.let {
-                        Text(
-                            text = "Due: ${it.toLocalDate()}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                // Priority badge
+                Surface(
+                    color = when (task.priority) {
+                        TaskPriority.HIGH -> MaterialTheme.colorScheme.error
+                        TaskPriority.MEDIUM -> MaterialTheme.colorScheme.secondary
+                        TaskPriority.LOW -> MaterialTheme.colorScheme.tertiary
+                    },
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Text(
+                        text = task.priority.name,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
 
-            // Complete button
             if (task.status != TaskStatus.COMPLETED) {
                 IconButton(onClick = onCompleteTask) {
                     Icon(
@@ -180,6 +184,7 @@ fun AddTaskDialog(
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf(TaskPriority.MEDIUM) }
+    var showPriorityDropdown by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -203,34 +208,24 @@ fun AddTaskDialog(
                     label = { Text("Description (Optional)") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                // Priority selector
-                ExposedDropdownMenuBox(
-                    expanded = false,
-                    onExpandedChange = { }
-                ) {
-                    TextField(
-                        value = priority.name,
-                        onValueChange = { },
-                        readOnly = true,
-                        label = { Text("Priority") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     if (title.isNotBlank()) {
-                        val newTask = Task(
-                            title = title,
-                            description = description.ifBlank { null },
-                            categoryId = 1, // Default category
-                            priority = priority
+                        onTaskAdded(
+                            Task(
+                                title = title,
+                                description = description.ifBlank { null },
+                                categoryId = 1, // Default category
+                                priority = priority,
+                                status = TaskStatus.NOT_STARTED
+                            )
                         )
-                        onTaskAdded(newTask)
                     }
-                }
+                },
+                enabled = title.isNotBlank()
             ) {
                 Text("Add")
             }
