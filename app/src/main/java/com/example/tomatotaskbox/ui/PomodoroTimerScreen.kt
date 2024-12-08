@@ -1,5 +1,6 @@
 package com.example.tomatotaskbox.ui
 
+import android.media.MediaPlayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,9 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.tomatotaskbox.R
 import com.example.tomatotaskbox.models.Task
 import com.example.tomatotaskbox.viewmodels.MainViewModel
 import kotlinx.coroutines.delay
@@ -39,10 +43,22 @@ fun PomodoroTimerScreen(
     var isWorkSession by remember { mutableStateOf(true) }
     var selectedTask by remember { mutableStateOf<Task?>(null) }
     val tasks by viewModel.tasks.collectAsState()
+    val context = LocalContext.current
 
     // Timer state
     var timeRemaining by remember { mutableStateOf(25 * 60) } // 25 minutes in seconds
     var isTimerRunning by remember { mutableStateOf(false) }
+
+    // Create MediaPlayer
+    val mediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.timer_end)
+    }
+    // Cleanup MediaPlayer when leaving the screen
+    DisposableEffect(Unit) {
+        onDispose {
+            mediaPlayer.release()
+        }
+    }
 
     // Timer effect
     LaunchedEffect(isTimerRunning, isWorkSession) {
@@ -53,6 +69,8 @@ fun PomodoroTimerScreen(
             // When timer reaches 0
             if (timeRemaining == 0) {
                 isTimerRunning = false
+                // Play sound
+                playTimerFinishSound(mediaPlayer)
                 // Record the completed session
                 if (isWorkSession) {
                     viewModel.recordWorkSession(
@@ -149,7 +167,7 @@ fun PomodoroTimerScreen(
             onClick = {
                 isTimerRunning = false
                 isWorkSession = !isWorkSession
-                timeRemaining = if (isWorkSession) 25 * 60 else 5 * 60
+                timeRemaining = if (isWorkSession) 25 * 60 else  5 * 60
             },
             modifier = Modifier.padding(top = 8.dp)
         ) {
@@ -157,6 +175,16 @@ fun PomodoroTimerScreen(
         }
     }
 }
+
+private fun playTimerFinishSound(mediaPlayer: MediaPlayer) {
+    try {
+        mediaPlayer.seekTo(0) // Reset to start
+        mediaPlayer.start()
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
 
 private fun formatTime(seconds: Int): String {
     val minutes = floor(seconds / 60.0).toInt()
